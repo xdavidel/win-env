@@ -1,0 +1,1125 @@
+#+TITLE: Dotfiles Configuration
+#+PROPERTY: cache yes
+#+auto_tangle: t
+
+* Table of Contents :toc:
+- [[#set-system-path][Set System Path]]
+  - [[#this-code-can-add-the-following-path-inside-emacs][This code can add the following path inside emacs.]]
+  - [[#you-can-also-eval-this-code-in-emacs-c-c-c-c-to-add-it-to-the-user-path][You can also eval this code (In emacs ~C-c C-c~) to add it to the user ~PATH~.]]
+- [[#dotfiles][Dotfiles]]
+- [[#edit-with-emacs][Edit with Emacs]]
+- [[#windows-photo-viewer][Windows Photo Viewer]]
+- [[#caps-to-ctrl][CAPS to CTRL]]
+- [[#runner-script][Runner script]]
+- [[#powershell][Powershell]]
+  - [[#go-one-directory-up-using-only-][Go one directory up using only `..`]]
+  - [[#use-neovim-alias-if-it-is-installed][Use neovim alias if it is installed]]
+  - [[#setup-a-better-prompt-for-powershell][Setup a better prompt for powershell]]
+  - [[#exit-on-q][Exit on ~q~]]
+- [[#command-prompt][Command Prompt]]
+  - [[#ls-equivalents][~ls~ Equivalents]]
+  - [[#exit-shell][Exit shell]]
+  - [[#clear-the-screen][Clear the screen]]
+  - [[#neovim-alias][Neovim alias]]
+  - [[#choose-a-vm][Choose a VM]]
+  - [[#control-media][Control media]]
+  - [[#string-unix-written-in-python][String unix written in python]]
+- [[#windows-terminal][Windows Terminal]]
+- [[#syncthing][Syncthing]]
+- [[#no-idle][No Idle]]
+- [[#autohotkey][AutoHotKey]]
+
+* Set System Path
+
+** This code can add the following path inside emacs.
+
+#+BEGIN_SRC emacs-lisp
+(setenv "Path"
+        (concat
+         (getenv "userprofile")
+         "\\bin" ";"
+         (getenv "Path")))
+#+END_SRC
+
+** You can also eval this code (In emacs ~C-c C-c~) to add it to the user ~PATH~.
+
+#+BEGIN_SRC bat :tangle "install.bat"
+@echo off
+
+:: Move to script directory
+cd /D "%~dp0"
+
+echo %PATH% | findstr /C:"%USERPROFILE%\\bin"
+
+if errorlevel 1 (
+setx PATH "%PATH%;%USERPROFILE%\bin"
+) ELSE (
+echo. "Already in path"
+)
+
+emacs "Windows.org" --batch -f org-babel-tangle
+#+END_SRC
+
+* Dotfiles
+
+At this point, some of my dotfiles can be used in windows as well.
+For example, application like =alacritty=, =mpv=, etc.
+
+For the time being - let's just have the dotfile directory in the system
+and then create symlinks for any neede configuration.
+
+Let's create a sync script for that:
+
+#+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/dotsync.bat")
+@echo off
+
+REM Get dotfiles if not already exists
+if not exist %USERPROFILE%\dotfiles\ (
+echo Cloning dotfiles
+git clone --depth 1 "https://gitlab.com/xdavidel/dotfiles.git" %USERPROFILE%\dotfiles
+)
+
+REM create config dir if needed
+if not exist %USERPROFILE%\.config\ (
+echo Creating config directory
+mkdir %USERPROFILE%\.config
+)
+
+REM link mpv
+if not exist %USERPROFILE%\.config\mpv\ (
+echo linking mpv
+mklink /J %USERPROFILE%\.config\mpv %USERPROFILE%\dotfiles\.config\mpv
+)
+
+REM link neovim
+if not exist %USERPROFILE%\AppData\Local\nvim (
+mklink /J %USERPROFILE%\AppData\Local\nvim %USERPROFILE%\dotfiles\.config\nvim
+)
+
+REM link alacritty
+if not exist %APPDATA%\alacritty\ (
+mklink /J %APPDATA%\alacritty %USERPROFILE%\dotfiles\.config\alacritty
+)
+
+REM link vscodium
+if not exist %APPDATA%\VSCodium\ (
+mklink /J %APPDATA%\VSCodium %USERPROFILE%\dotfiles\.config\VSCodium
+)
+#+end_src
+
+* Edit with Emacs
+
+Use the following reg file to add a context menu for editing files
+using emacs
+
+#+NAME: runemacs-path
+#+begin_src emacs-lisp :cache yes :results silent
+(replace-regexp-in-string "/" "\\\\\\\\" (executable-find "runemacs"))
+#+end_src
+
+#+NAME: emacsclient-path
+#+begin_src emacs-lisp :cache yes :results silent
+(replace-regexp-in-string "/" "\\\\\\\\" (executable-find "emacsclientw"))
+#+end_src
+
+#+begin_src conf :mkdirp yes :noweb yes :tangle (concat (getenv "USERPROFILE") "/regs/emacs_contexts.reg")
+Windows Registry Editor Version 5.00
+;; Be sure to set the correct path to Emacs on your system
+[HKEY_CURRENT_USER\Software\Classes\*\shell]
+
+;; Open file in existing frame
+[HKEY_CURRENT_USER\Software\Classes\*\shell\emacsopen1sameframe]
+@="&Emacs: Edit in existing window"
+"Icon"="<<runemacs-path()>>"
+[HKEY_CURRENT_USER\Software\Classes\*\shell\emacsopen1sameframe\command]
+@="<<emacsclient-path()>> -n --alternate-editor=\"<<runemacs-path()>>\" -n \"%1\""
+
+;; Open file in new frame
+[HKEY_CURRENT_USER\Software\Classes\*\shell\emacsopen2newframe]
+@="&Emacs: Edit in new window"
+"Icon"="<<emacsclient-path()>>"
+[HKEY_CURRENT_USER\Software\Classes\*\shell\emacsopen2newframe\command]
+@="<<emacsclient-path()>> -n --alternate-editor=\"<<runemacs-path()>>\" -n \"%1\""
+
+;; Dired for desktop background
+[HKEY_CURRENT_USER\Software\Classes\DesktopBackground\shell\emacsopensameframe]
+@="&Emacs: Open in dired"
+"Icon"="<<emacsclient-path()>>"
+[HKEY_CURRENT_USER\Software\Classes\DesktopBackground\shell\emacsopensameframe\command]
+@="<<emacsclient-path()>> -n --alternate-editor=\"<<runemacs-path()>>\" -n \"%v\""
+
+;; Dired for directory
+[HKEY_CURRENT_USER\Software\Classes\Directory\shell\emacsopensameframe]
+@="&Emacs: Open in dired"
+"Icon"="<<emacsclient-path()>>"
+[HKEY_CURRENT_USER\Software\Classes\Directory\shell\emacsopensameframe\command]
+@="<<emacsclient-path()>> -n --alternate-editor=\"<<runemacs-path()>>\" -n \"%V\""
+
+;; Dired for directory background
+[HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\emacsopensameframe]
+@="&Emacs: Open in dired"
+"Icon"="<<emacsclient-path()>>"
+[HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\emacsopensameframe\command]
+@="<<emacsclient-path()>> -n --alternate-editor=\"<<runemacs-path()>>\" -n \"%V\""
+
+;; Dired for drive background
+[HKEY_CURRENT_USER\Software\Classes\Drive\Background\shell\EmacsOpenDirSameFrame]
+@="&Emacs: Open in dired"
+"Icon"="<<emacsclient-path()>>"
+[HKEY_CURRENT_USER\Software\Classes\Drive\Background\shell\EmacsOpenDirSameFrame\command]
+;; as drives haven't space inside their name don't use quoting
+@="<<emacsclient-path()>> -n --alternate-editor=\"<<runemacs-path()>>\" -n %L"
+
+;; Dired for drive
+[HKEY_CURRENT_USER\Software\Classes\Drive\shell\EmacsOpenDirSameFrame]
+@="&Emacs: Open in dired"
+"Icon"="<<emacsclient-path()>>"
+[HKEY_CURRENT_USER\Software\Classes\Drive\shell\EmacsOpenDirSameFrame\command]
+;; as drives haven't space inside their name don't use quoting
+@="<<emacsclient-path()>> -n --alternate-editor=\"<<runemacs-path()>>\" -n \"%1\""
+
+#+end_src
+
+* Windows Photo Viewer
+
+Get back the ability to open images in old Windows Photo Viewer
+
+#+begin_src conf :mkdirp yes :noweb yes :tangle (concat (getenv "USERPROFILE") "/regs/activate_photo_viewer.reg")
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\Applications\photoviewer.dll]
+
+[HKEY_CLASSES_ROOT\Applications\photoviewer.dll\shell]
+
+[HKEY_CLASSES_ROOT\Applications\photoviewer.dll\shell\open]
+"MuiVerb"="@photoviewer.dll,-3043"
+
+[HKEY_CLASSES_ROOT\Applications\photoviewer.dll\shell\open\command]
+@=hex(2):25,00,53,00,79,00,73,00,74,00,65,00,6d,00,52,00,6f,00,6f,00,74,00,25,\
+00,5c,00,53,00,79,00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,72,00,75,00,\
+6e,00,64,00,6c,00,6c,00,33,00,32,00,2e,00,65,00,78,00,65,00,20,00,22,00,25,\
+00,50,00,72,00,6f,00,67,00,72,00,61,00,6d,00,46,00,69,00,6c,00,65,00,73,00,\
+25,00,5c,00,57,00,69,00,6e,00,64,00,6f,00,77,00,73,00,20,00,50,00,68,00,6f,\
+00,74,00,6f,00,20,00,56,00,69,00,65,00,77,00,65,00,72,00,5c,00,50,00,68,00,\
+6f,00,74,00,6f,00,56,00,69,00,65,00,77,00,65,00,72,00,2e,00,64,00,6c,00,6c,\
+00,22,00,2c,00,20,00,49,00,6d,00,61,00,67,00,65,00,56,00,69,00,65,00,77,00,\
+5f,00,46,00,75,00,6c,00,6c,00,73,00,63,00,72,00,65,00,65,00,6e,00,20,00,25,\
+00,31,00,00,00
+
+[HKEY_CLASSES_ROOT\Applications\photoviewer.dll\shell\open\DropTarget]
+"Clsid"="{FFE2A43C-56B9-4bf5-9A79-CC6D4285608A}"
+
+[HKEY_CLASSES_ROOT\Applications\photoviewer.dll\shell\print]
+
+[HKEY_CLASSES_ROOT\Applications\photoviewer.dll\shell\print\command]
+@=hex(2):25,00,53,00,79,00,73,00,74,00,65,00,6d,00,52,00,6f,00,6f,00,74,00,25,\
+00,5c,00,53,00,79,00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,00,72,00,75,00,\
+6e,00,64,00,6c,00,6c,00,33,00,32,00,2e,00,65,00,78,00,65,00,20,00,22,00,25,\
+00,50,00,72,00,6f,00,67,00,72,00,61,00,6d,00,46,00,69,00,6c,00,65,00,73,00,\
+25,00,5c,00,57,00,69,00,6e,00,64,00,6f,00,77,00,73,00,20,00,50,00,68,00,6f,\
+00,74,00,6f,00,20,00,56,00,69,00,65,00,77,00,65,00,72,00,5c,00,50,00,68,00,\
+6f,00,74,00,6f,00,56,00,69,00,65,00,77,00,65,00,72,00,2e,00,64,00,6c,00,6c,\
+00,22,00,2c,00,20,00,49,00,6d,00,61,00,67,00,65,00,56,00,69,00,65,00,77,00,\
+5f,00,46,00,75,00,6c,00,6c,00,73,00,63,00,72,00,65,00,65,00,6e,00,20,00,25,\
+00,31,00,00,00
+
+[HKEY_CLASSES_ROOT\Applications\photoviewer.dll\shell\print\DropTarget]
+"Clsid"="{60fd46de-f830-4894-a628-6fa81bc0190d}"
+#+end_src
+
+* CAPS to CTRL
+
+Using this reg we can convert CapsLock to act as Ctrl key
+
+#+begin_src conf :mkdirp yes :noweb yes :tangle (concat (getenv "USERPROFILE") "/regs/caps2ctrl.reg")
+Windows Registry Editor Version 5.00
+[HKEY_CURRENT_USER\Keyboard Layout]
+"Scancode Map"=hex:00,00,00,00,00,00,00,00,02,00,00,00,1d,00,3a,00,00,00,00,00
+#+end_src
+
+* Runner script
+
+One annoying thing in windows is it habit of opening a terminal
+for running shell scripts. Running them via this vbs script
+prevents that
+
+#+BEGIN_SRC vbs :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/runner.vbs")
+Set args = WScript.Arguments
+
+if args.Count = 0 then
+    WScript.Echo "Missing arguments"
+    WScript.Quit 1
+else
+    Set oShell = CreateObject ("Wscript.Shell")
+    oShell.Run args.Item(0), 0, false
+end if
+#+end_src
+
+* Powershell
+** Go one directory up using only `..`
+
+#+BEGIN_SRC powershell :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1")
+function .. {
+    cd ..
+}
+#+END_SRC
+
+** Use neovim alias if it is installed
+
+#+BEGIN_SRC powershell :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1")
+function vi {
+    if ((Get-Command nvim -ErrorAction SilentlyContinue) -eq $null)
+    {
+        Write-Host "neovim is not installed"
+        return
+    }
+    nvim $Args
+}
+
+function vv {
+    if ((Get-Command nvim -ErrorAction SilentlyContinue) -eq $null)
+    {
+        Write-Host "neovim is not installed"
+        return
+    }
+    nvim $Args
+}
+#+END_SRC
+
+** Setup a better prompt for powershell
+
+#+BEGIN_SRC powershell :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1")
+function prompt {
+    Write-Host -NoNewline "[" -ForegroundColor Red
+    Write-Host -NoNewline $env:UserName -ForegroundColor Yellow
+    Write-Host -NoNewline "@" -ForegroundColor Green
+    Write-Host -NoNewline $env:computername -ForegroundColor Cyan
+    Write-Host -NoNewline "] " -ForegroundColor Red
+    Write-Host $ExecutionContext.SessionState.Path.CurrentLocation -ForegroundColor Magenta
+    "$('PS>' * ($nestedPromptLevel + 1)) "
+}
+#+END_SRC
+
+** Exit on ~q~
+
+#+BEGIN_SRC powershell :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1")
+function q {
+    exit 0
+}
+#+END_SRC
+
+* Command Prompt
+
+We can use scripts to create simple and relativly fast apps, aliases and functions
+In order for that to work we need to add the tangled directory to the ~PATH~.
+
+** ~ls~ Equivalents
+
+Show files and folders as close as I could to the unix way
+
+#+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/ls.bat")
+@echo off
+dir /D
+#+end_src
+
+#+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/l.bat")
+@echo off
+dir
+#+end_src
+
+#+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/ll.bat")
+@echo off
+dir /A
+#+end_src
+
+#+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/la.bat")
+@echo off
+dir /W
+#+end_src
+
+** Exit shell
+
+#+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/q.bat")
+@echo off
+exit
+#+end_src
+
+** Clear the screen
+
+#+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/clear.bat")
+@echo off
+cls
+#+end_src
+
+** Neovim alias
+
+#+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/vv.bat")
+@echo off
+nvim %*
+#+end_src
+
+#+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/vi.bat")
+@echo off
+nvim %*
+#+end_src
+
+** Choose a VM
+
+A trriger script the uses a powershell one
+
+#+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/vboxs.bat")
+powershell -nologo -executionpolicy bypass -File "%~dp0\vboxes.ps1"
+#+end_src
+
+This script is using ~VirtualBox~ cli to list availavle VMs and present the user with a choice to run one
+
+#+BEGIN_SRC powershell :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/vboxs.ps1")
+# Commands and parameters
+$cmd = 'C:\Program Files\Oracle\VirtualBox\VBoxManage.exe'
+$listprm = 'list vms'
+$runvm = 'startvm'
+
+# List all VMs
+$chosen = Invoke-Expression "& '$cmd' $listprm" | ConvertFrom-String -PropertyNames VirtualMachineName,Hash -Delimiter " " | Out-GridView -OutputMode "Single"
+
+# Safeguard
+if ($chosen -Eq $null) {exit}
+
+# Run selected machine
+Invoke-Expression "& '$cmd' $runvm $chosen.VirtualMachineName"
+powershell -nologo -executionpolicy bypass -File "%~dp0\vboxes.ps1"
+#+end_src
+
+#+BEGIN_SRC powershell :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/mounter.ps1")
+$chosen=Get-Disk | ForEach-Object {
+    $diskprt = Get-Partition -DiskNumber $_.DiskNumber | Select-Object -Property PartitionNumber,Size,Type,DriveLetter
+    $diskprt | Add-Member -Name 'DiskName' -MemberType NoteProperty -Value $_.FriendlyName
+    $diskprt | Add-Member -Name 'DiskNumber' -MemberType NoteProperty -Value $_.DiskNumber
+    $diskprt | Add-Member -Name 'DiskSize' -MemberType NoteProperty -Value $_.Size
+    $diskprt | Add-Member -Name 'PartitionTable' -MemberType NoteProperty -Value $_.PartitionStyle
+
+    echo $diskprt
+
+} | Select-Object -Property DiskNumber,DiskName,DiskSize,PartitionNumber,DriveLetter,Type,Size,PartitionTable |
+  Out-GridView -OutputMode "Single"
+
+# Safeguard
+if ($chosen -Eq $null) {exit}
+if ($chosen.DriveLetter) { echo "Hey! This partition is already mounted."; exit}
+if ($chosen.Type -contains "Unknown") { echo "Sorry, This partition has an unknown type."; exit}
+
+# Shoose available mounting drive letter
+$mnt=echo "D" "E" "F" "G" "H" "I" "J" "K" "L" "M" "P" "Q" "R" "S" "T" "U" "V" "W" "X" "Y" "Z" |
+  Where-Object -FilterScript { ( $_ -NotIn ((Get-PSDrive).Name -match '^[a-z]$')) } |
+  Out-GridView -OutputMode "Single"
+
+
+# Safeguard
+if ($mnt -Eq $null) {exit}
+
+# mount the selected partition to the selected drive letter
+Get-Partition -DiskNumber $chosen.DiskNumber | Where-Object -FilterScript { ($_.PartitionNumber -Eq $chosen.PartitionNumber) } | Set-Partition -NewDriveLetter $mnt
+#+end_src
+
+** Control media
+
+This script is being used to control the media using ~mpc~ with special keys:
+The program ~mpc~ needs to be in the system / user ~PATH~.
+
+| Key | Description                       |
+|-----+-----------------------------------|
+| t   | Toggle Music on / off             |
+| n   | Next song in the playlist         |
+| p   | Previus song in the playlist      |
+| f   | Seek forward in the curernt song  |
+| b   | Seek backward in the current song |
+
+#+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/mediactrl.bat")
+@echo off
+
+IF "%1%"=="t" (
+mpc.lnk toggle
+)
+
+IF "%1%"=="n" (
+mpc.lnk next
+)
+
+IF "%1%"=="p" (
+mpc.lnk prev
+)
+
+IF "%1%"=="f" (
+mpc.lnk seek +10
+)
+
+IF "%1%"=="b" (
+mpc.lnk seek -10
+)
+#+end_src
+
+** String unix written in python
+
+#+BEGIN_SRC python :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/strings.py")
+#!/usr/bin/env python
+
+  ##########################################################################################################
+  ##
+  ## Like steroids for your strings!
+  ##
+  ## Original idea: @williballenthin
+  ## Original link: https://gist.github.com/williballenthin/8e3913358a7996eab9b96bd57fc59df2
+  ##
+  ## Lipstick and rouge by: @herrcore
+  ##########################################################################################################
+
+  import sys
+  import re
+  import argparse
+  from collections import namedtuple
+
+
+  ASCII_BYTE = " !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~\t"
+
+
+  String = namedtuple("String", ["s", "offset"])
+
+
+  def ascii_strings(buf, n=4):
+      reg = "([%s]{%d,})" % (ASCII_BYTE, n)
+      ascii_re = re.compile(reg)
+      for match in ascii_re.finditer(buf):
+    yield String(match.group().decode("ascii"), match.start())
+
+  def unicode_strings(buf, n=4):
+      reg = b"((?:[%s]\x00){%d,})" % (ASCII_BYTE, n)
+      uni_re = re.compile(reg)
+      for match in uni_re.finditer(buf):
+    try:
+        yield String(match.group().decode("utf-16"), match.start())
+    except UnicodeDecodeError:
+        pass
+
+
+  def main():
+      parser = argparse.ArgumentParser(description="Extract strings.")
+      parser.add_argument("infile", help="File to extract from.")
+      parser.add_argument('-a','--ascii',dest="ascii_only",action='store_true',default=False,help="Only extract ascii strings.")
+      parser.add_argument('-u','--unicode',dest="unicode_only",action='store_true',default=False,help="Only extract unicode strings.")
+      parser.add_argument('-o','--offset',dest="set_offset",action='store_true',default=False,help="Include string offset.")
+      parser.add_argument('--size', type=int, dest="string_size",help="Set minumum length of string to extract. Default: 4")
+      args = parser.parse_args()
+
+      with open(args.infile, 'rb') as f:
+    b = f.read()
+
+      #setup the min string size
+      if args.string_size == None:
+    string_size = 4;
+      else:
+    string_size = args.string_size
+
+      #should we print the string offset
+      if args.set_offset:
+    if args.ascii_only:
+        for s in ascii_strings(b,n=string_size):
+      print('0x{:x}: {:s}'.format(s.offset, s.s))
+    elif args.unicode_only:
+        for s in unicode_strings(b,n=string_size):
+      print('0x{:x}: {:s}'.format(s.offset, s.s))
+    else:
+        for s in ascii_strings(b,n=string_size):
+      print('0x{:x}: {:s}'.format(s.offset, s.s))
+
+        for s in unicode_strings(b,n=string_size):
+      print('0x{:x}: {:s}'.format(s.offset, s.s))
+      else:
+    if args.ascii_only:
+        for s in ascii_strings(b,n=string_size):
+      print('{:s}'.format(s.s))
+    elif args.unicode_only:
+        for s in unicode_strings(b,n=string_size):
+      print('{:s}'.format(s.s))
+    else:
+        for s in ascii_strings(b,n=string_size):
+      print('{:s}'.format(s.s))
+
+        for s in unicode_strings(b,n=string_size):
+      print('{:s}'.format(s.s))
+
+
+  if __name__ == '__main__':
+      main()
+#+end_src
+
+* Windows Terminal
+
+Here are some windows terminal configurations
+
+#+BEGIN_SRC json :mkdirp yes :tangle (concat (getenv "LOCALAPPDATA") "/Microsoft/Windows Terminal/settings.json")
+// This file was initially generated by Windows Terminal (Unpackaged) 1.10.210928004-release1.10
+// It should still be usable in newer versions, but newer versions might have additional
+// settings, help text, or changes that you will not see unless you clear this file
+// and let us generate a new one for you.
+
+
+// To view the default settings, hold "alt" while clicking on the "Settings" button.
+// For documentation on these settings, see: https://aka.ms/terminal-documentation
+{
+    "$schema": "https://aka.ms/terminal-profiles-schema",
+
+    "defaultProfile": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
+
+    // You can add more global application settings here.
+    // To learn more about global settings, visit https://aka.ms/terminal-global-settings
+
+    // If enabled, selections are automatically copied to your clipboard.
+    "copyOnSelect": false,
+
+    // If enabled, formatted data is also copied to your clipboard
+    "copyFormatting": false,
+
+    // A profile specifies a command to execute paired with information about how it should look and feel.
+    // Each one of them will appear in the 'New Tab' dropdown,
+    //   and can be invoked from the commandline with `wt.exe -p xxx`
+    // To learn more about profiles, visit https://aka.ms/terminal-profile-settings
+    "profiles":
+    {
+        "defaults":
+        {
+            // Put settings here that you want to apply to all profiles.
+        },
+        "list":
+        [
+            {
+                // Make changes here to the powershell.exe profile.
+                "guid": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
+                "name": "Windows PowerShell",
+                "commandline": "powershell.exe",
+                "hidden": false
+            },
+            {
+                // Make changes here to the cmd.exe profile.
+                "guid": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
+                "name": "Command Prompt",
+                "commandline": "cmd.exe",
+                "hidden": false
+            },
+            {
+                "guid": "{2c4de342-38b7-51cf-b940-2309a097f518}",
+                "name": "Ubuntu",
+                "source": "Windows.Terminal.Wsl"
+            },
+            {
+                "guid": "{b453ae62-4e3d-5e58-b989-0a998ec441b8}",
+                "name": "Azure Cloud Shell",
+                "source": "Windows.Terminal.Azure"
+            }
+        ]
+    },
+
+    // Add custom color schemes to this array.
+    // To learn more about color schemes, visit https://aka.ms/terminal-color-schemes
+    "schemes": [],
+
+    // Add custom actions and keybindings to this array.
+    // To unbind a key combination from your defaults.json, set the command to "unbound".
+    // To learn more about actions and keybindings, visit https://aka.ms/terminal-keybindings
+    "actions":
+    [
+        // Copy and paste are bound to Ctrl+Shift+C and Ctrl+Shift+V in your defaults.json.
+        // These two lines additionally bind them to Ctrl+C and Ctrl+V.
+        // To learn more about selection, visit https://aka.ms/terminal-selection
+        { "command": {"action": "copy", "singleLine": false }, "keys": "ctrl+alt+c" },
+        { "command": "paste", "keys": "ctrl+alt+v" },
+
+        // Press Ctrl+Shift+F to open the search box
+        { "command": "find", "keys": "ctrl+shift+f" },
+
+        // Press Alt+Shift+D to open a new pane.
+        // - "split": "auto" makes this pane open in the direction that provides the most surface area.
+        // - "splitMode": "duplicate" makes the new pane use the focused pane's profile.
+        // To learn more about panes, visit https://aka.ms/terminal-panes
+        { "command": { "action": "splitPane", "split": "auto", "splitMode": "duplicate" }, "keys": "alt+shift+d" }
+    ]
+}
+#+end_src
+
+* Syncthing
+
+If we want to use syncthing in windows it is recommanded to auto run it
+at system startup. We can call via the startup folder by creating a
+a startup script for it
+
+#+BEGIN_SRC bat :tangle (concat (getenv "USERPROFILE") "/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/syncthing_start.bat")
+syncthing -no-console -no-browser
+#+END_SRC
+
+* No Idle
+
+This script is a hack to keep windows from entering sleep, screensaver
+or other mode when detecting idle mode.
+
+#+begin_src vbs
+Dim objResult
+Dim fin : fin = 12 * 60
+
+Set objShell = Wscript.CreateObject("Wscript.shell")
+
+For i=0 to fin Step 1
+  Wscript.Sleep(60000)
+  objResult = objShell.sendkeys("{NUMLOCK}{NUMLOCK}")
+Next
+#+end_src
+
+* AutoHotKey
+*** Header Info
+
+Autohotkey use the following symbols to bind action keys:
+
+| Symbol  | Key   |
+| ------- | ----- |
+| #       | Super |
+| ^       | Ctrl  |
+| !       | Alt   |
+| +       | Shift |
+
+*** Header Recommendation
+
+#+BEGIN_SRC ahk :tangle (concat (getenv "USERPROFILE") "/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/keys.ahk")
+  #NoEnv ; Recommended for performance and compatibility with future AutoHotkey releases.
+  ; #Warn  ; Enable warnings to assist with detecting common errors.
+  SendMode Input  ; Recommended for new scripts due to its superior speed and reliability.
+  SetWorkingDir %A_ScriptDir%  ; Ensures a consistent starting directory.
+  setTitleMatchMode, 2 ; set title match mode to "contains"
+
+  #SingleInstance force
+#+END_SRC
+
+*** Helpers
+
+#+BEGIN_SRC ahk :tangle (concat (getenv "USERPROFILE") "/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/keys.ahk")
+  ; Check if process is running
+  ProcessExist(Name) {
+    Process,Exist,%Name%
+    return Errorlevel
+  }
+
+  ; This Function activate a program if already running.
+  ; Else, it open a new instance of the program
+  ActivateOrOpen(window, program) {
+    ; check if window exists
+    if WinExist(window) {
+      WinActivate  ; Uses the last found window.
+    }
+    else {
+      ; else start requested program
+      Run cmd /c "start ^"^" ^"%program%^"",, Hide ;use cmd in hidden mode to launch requested program
+      WinWait, %window%,,5		; wait up to 5 seconds for window to exist
+      IfWinNotActive, %window%, , WinActivate, %window% {
+        WinActivate  ; Uses the last found window.
+      }
+    }
+    return
+  }
+
+
+  ; This function examines the registry to build an accurate list of the current virtual desktops and which one we're currently on.
+  ; Current desktop UUID appears to be in HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\SessionInfo\1\VirtualDesktops
+  ; List of desktops appears to be in HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops
+
+  mapDesktopsFromRegistry() {
+    global CurrentDesktop, DesktopCount
+    ; Get the current desktop UUID. Length should be 32 always, but there's no guarantee this couldn't change in a later Windows release so we check.
+    IdLength := 32
+    SessionId := getSessionId()
+    if (SessionId) {
+      RegRead, CurrentDesktopId, HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\SessionInfo\%SessionId%\VirtualDesktops, CurrentVirtualDesktop
+      if (CurrentDesktopId) {
+        IdLength := StrLen(CurrentDesktopId)
+      }
+    }
+    ; Get a list of the UUIDs for all virtual desktops on the system
+    RegRead, DesktopList, HKEY_CURRENT_USER, SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops, VirtualDesktopIDs
+    if (DesktopList) {
+      DesktopListLength := StrLen(DesktopList)
+      ; Figure out how many virtual desktops there are
+      DesktopCount := DesktopListLength / IdLength
+    }
+    else {
+      DesktopCount := 1
+    }
+    ; Parse the REG_DATA string that stores the array of UUID's for virtual desktops in the registry.
+    i := 0
+    while (CurrentDesktopId and i < DesktopCount) {
+      StartPos := (i * IdLength) + 1
+      DesktopIter := SubStr(DesktopList, StartPos, IdLength)
+      OutputDebug, The iterator is pointing at %DesktopIter% and count is %i%.
+      ; Break out if we find a match in the list. If we didn't find anything, keep the
+      ; old guess and pray we're still correct :-D.
+      if (DesktopIter = CurrentDesktopId) {
+        CurrentDesktop := i + 1
+        OutputDebug, Current desktop number is %CurrentDesktop% with an ID of %DesktopIter%.
+        break
+      }
+      i++
+    }
+  }
+  ;
+  ; This functions finds out ID of current session.
+  ;
+  getSessionId()
+  {
+    ProcessId := DllCall("GetCurrentProcessId", "UInt")
+    if ErrorLevel {
+      OutputDebug, Error getting current process id: %ErrorLevel%
+      return
+    }
+    OutputDebug, Current Process Id: %ProcessId%
+    DllCall("ProcessIdToSessionId", "UInt", ProcessId, "UInt*", SessionId)
+    if ErrorLevel {
+      OutputDebug, Error getting session id: %ErrorLevel%
+      return
+    }
+    OutputDebug, Current Session Id: %SessionId%
+    return SessionId
+  }
+  ;
+  ; This function switches to the desktop number provided.
+  ;
+  switchDesktopByNumber(targetDesktop)
+  {
+    global CurrentDesktop, DesktopCount
+    ; Re-generate the list of desktops and where we fit in that. We do this because
+    ; the user may have switched desktops via some other means than the script.
+    mapDesktopsFromRegistry()
+    ; Don't attempt to switch to an invalid desktop
+    if (targetDesktop > DesktopCount || targetDesktop < 1) {
+      OutputDebug, [invalid] target: %targetDesktop% current: %CurrentDesktop%
+      return
+    }
+    ; Go right until we reach the desktop we want
+    while(CurrentDesktop < targetDesktop) {
+      Send ^#{Right}
+      CurrentDesktop++
+      OutputDebug, [right] target: %targetDesktop% current: %CurrentDesktop%
+    }
+    ; Go left until we reach the desktop we want
+    while(CurrentDesktop > targetDesktop) {
+      Send ^#{Left}
+      CurrentDesktop--
+      OutputDebug, [left] target: %targetDesktop% current: %CurrentDesktop%
+    }
+  }
+  ;
+  ; This function switches to the desktop number provided.
+  ;
+  moveToDesktopNumber(targetDesktop)
+  {
+    global CurrentDesktop, DesktopCount, MoveWindowToDesktopNumberProc
+    ; Re-generate the list of desktops and where we fit in that. We do this because
+    ; the user may have switched desktops via some other means than the script.
+    mapDesktopsFromRegistry()
+    ; Don't attempt to switch to an invalid desktop
+    if (targetDesktop > DesktopCount || targetDesktop < 1) {
+      OutputDebug, [invalid] target: %targetDesktop% current: %CurrentDesktop%
+      return
+    }
+    WinGet, activeHwnd, ID, A
+
+    hVirtualDesktopAccessor := DllCall("LoadLibrary", "Str", "c:\tools\keys\VirtualDesktopAccessor.dll", "Ptr")
+    MoveWindowToDesktopNumberProc := DllCall("GetProcAddress", Ptr, hVirtualDesktopAccessor, AStr, "MoveWindowToDesktopNumber", "Ptr")
+    DllCall(MoveWindowToDesktopNumberProc, UInt, activeHwnd, UInt, targetDesktop -1)
+    DllCall("FreeLibrary", "Ptr", hVirtualDesktopAccessor)
+  }
+  ;
+  ; This function creates a new virtual desktop and switches to it
+  ;
+  createVirtualDesktop()
+  {
+    global CurrentDesktop, DesktopCount
+    Send, #^d
+    DesktopCount++
+    CurrentDesktop = %DesktopCount%
+    OutputDebug, [create] desktops: %DesktopCount% current: %CurrentDesktop%
+  }
+  ;
+  ; This function deletes the current virtual desktop
+  ;
+  deleteVirtualDesktop()
+  {
+    global CurrentDesktop, DesktopCount
+    Send, #^{F4}
+    DesktopCount--
+    CurrentDesktop--
+    OutputDebug, [delete] desktops: %DesktopCount% current: %CurrentDesktop%
+  }
+#+END_SRC
+
+*** Move active window by 100 pixels
+
+#+BEGIN_SRC ahk :tangle (concat (getenv "USERPROFILE") "/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/keys.ahk")
+; move active window 100 pixels right
+#!l::
+wingetpos x,y,w,h,A          ; get coordinates of the active window
+x += 100			         ; add 100 to the x coordinate
+winmove, A,,%x%,%y%,%w%,%h%  ; make the active window use the new coordinates
+return				         ; finish
+
+; move active window 100 pixels left
+#!h::
+wingetpos x,y,w,h,A
+x -= 100
+winmove, A,,%x%,%y%,%w%,%h%
+return
+
+; move active window 100 pixels up
+#!k::
+wingetpos x,y,w,h,A
+y -= 100
+winmove, A,,%x%,%y%,%w%,%h%
+return
+
+; move active window 100 pixels down
+#!j::
+wingetpos x,y,w,h,A
+y += 100
+winmove, A,,%x%,%y%,%w%,%h%
+return
+#+END_SRC
+
+*** Resize active windows by 50 pixels
+
+#+BEGIN_SRC ahk :tangle (concat (getenv "USERPROFILE") "/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/keys.ahk")
+; resize active window +50 pixels right
+#!right::
+wingetpos x,y,w,h,A
+w += 50
+winmove, A,,%x%,%y%,%w%,%h%
+return
+
+; resize active window -50 pixels right
+#!left::
+wingetpos x,y,w,h,A
+w -= 50
+winmove, A,,%x%,%y%,%w%,%h%
+return
+
+; resize active window +50 pixels down
+#!down::
+wingetpos x,y,w,h,A
+h += 50
+winmove, A,,%x%,%y%,%w%,%h%
+return
+
+; resize active window -50 pixels down
+#!up::
+wingetpos x,y,w,h,A
+h -= 50
+winmove, A,,%x%,%y%,%w%,%h%
+return
+#+END_SRC
+
+*** Media Control
+
+Control music and volume using the following bindings:
+
+| Key Combination | Action            |
+| --------------- | ------------      |
+| Super + P       | Pause / Play      |
+| Super + .       | Next Song         |
+| Super + ,       | Prev Song         |
+| Super + [       | Fast Backward     |
+| Super + ]       | Fast Forward      |
+| Super + =       | Volume Up         |
+| Super + -       | Volume Down       |
+| Super + m       | Open Media Player |
+| Super + M       | Mute              |
+
+#+BEGIN_SRC ahk :tangle (concat (getenv "USERPROFILE") "/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/keys.ahk")
+; Toggle music play/pause
+#p::
+Run, cmd /c "mediactrl t",,Hide
+return
+
+; Next song
+#.::
+Run, cmd /c "mediactrl n",,Hide
+return
+
+; Previus song
+#,::
+Run, cmd /c "mediactrl p",,Hide
+return
+
+; Backward song
+#[::
+Run, cmd /c "mediactrl b",,Hide
+return
+
+; Forward song
+#]::
+Run, cmd /c "mediactrl f",,Hide
+return
+
+; Volume Up
+#=::
+Send, {Volume_Up}
+return
+
+; Volume Down
+#-::
+Send, {Volume_Down}
+return
+
+; Volume Mute
+,#+m::
+Send, {Volume_Mute}
+return
+
+; Audio Media Player
+#m::
+If !ProcessExist("mpd.exe")
+  Run, mpd,,Hide
+Run, cmd /C "ncmpc.lnk"
+return
+#+END_SRC
+
+*** Open Programs
+
+#+BEGIN_SRC ahk :tangle (concat (getenv "USERPROFILE") "/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/keys.ahk")
+; Python shell
+#a::
+Run, cmd /C python
+return
+
+; Web Browser
+#w::
+ActivateOrOpen("- Brave", "brave.exe")
+return
+
+; Command Prompt
+#Enter::
+Run, cmd /K cd /
+return
+
+; Wsl prompt
+,#+Enter::
+Run, wsl.exe
+return
+
+; Choose Virtualbox VM
+#F8::
+Run, vboxes,,Hide
+return
+
+; Disk Mounter
+#F9::
+Run, powershell mounter.ps1,,Hide
+return
+
+#+END_SRC
+
+*** Toggle Window Transparentcy
+
+You can toggle the active window transparentcy using ~Super + Ctrl + End~
+
+#+BEGIN_SRC ahk :tangle (concat (getenv "USERPROFILE") "/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/keys.ahk")
+  ,#+End::
+  WinGet, currentTransparency, Transparent, A
+  if (currentTransparency = OFF)
+  {
+    WinSet, Transparent, 235, A
+  }
+  else
+  {
+    WinSet, Transparent, OFF, A
+  }
+  return
+#+END_SRC
+
+*** Toggle Hidden Files
+
+Use ~Super + h~ to toggle hidden files
+
+#+BEGIN_SRC ahk :tangle (concat (getenv "USERPROFILE") "/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/keys.ahk")
+  #h::
+  RegRead, HiddenFiles_Status, HKEY_CURRENT_USER, Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced, Hidden
+  If HiddenFiles_Status = 2
+    RegWrite, REG_DWORD, HKEY_CURRENT_USER, Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced, Hidden, 1
+  Else
+    RegWrite, REG_DWORD, HKEY_CURRENT_USER, Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced, Hidden, 2
+  ;refresh Desktop/folder windows
+  DetectHiddenWindows, On
+  GroupAdd, vGroupFolder, ahk_class CabinetWClass
+  GroupAdd, vGroupFolder, ahk_class ExploreWClass
+  PostMessage, 0x111, 28931, , SHELLDLL_DefView1, ahk_class Progman
+  WinGet, vWinList, List, ahk_group vGroupFolder
+  Loop, %vWinList%
+    PostMessage, 0x111, 41504, , ShellTabWindowClass1, % "ahk_id " vWinList%A_Index%
+  ;PostMessage, 0x111, 28931, , SHELLDLL_DefView1, % "ahk_id " vWinList%A_Index% ;also works
+  Return
+#+END_SRC
+
+*** Close Windows
+
+Close the active window with ~Super + q~. Force close any window with ~Super + Q~.
+
+#+BEGIN_SRC ahk :tangle (concat (getenv "USERPROFILE") "/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/keys.ahk")
+  #q::
+  WinGetTitle, Title, A
+  PostMessage, 0x112, 0xF060,,, %Title%
+  return
+
+,#+q::
+WinKill, A
+return
+#+END_SRC
+
+*** Reload AutoHotkey Configuration
+
+#+BEGIN_SRC ahk :tangle (concat (getenv "USERPROFILE") "/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/keys.ahk")
+  #F2::Reload
+  return
+#+END_SRC
+*** Switch Workspaces
+
+Switch between workspaces using ~Super + <NUMBER>~
+
+#+BEGIN_SRC ahk :tangle (concat (getenv "USERPROFILE") "/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/keys.ahk")
+
+; Globals
+DesktopCount = 2 ; Windows starts with 2 desktops at boot
+CurrentDesktop = 1 ; Desktop count is 1-indexed (Microsoft numbers them this way)
+
+; Main
+SetKeyDelay, 75
+mapDesktopsFromRegistry()
+OutputDebug, [loading] desktops: %DesktopCount% current: %CurrentDesktop%
+; User config!
+; This section binds the key combo to the switch/create/delete actions
+#1::switchDesktopByNumber(1)
+#2::switchDesktopByNumber(2)
+#3::switchDesktopByNumber(3)
+#4::switchDesktopByNumber(4)
+#5::switchDesktopByNumber(5)
+#6::switchDesktopByNumber(6)
+#7::switchDesktopByNumber(7)
+#8::switchDesktopByNumber(8)
+#9::switchDesktopByNumber(9)
+
+,#+1::moveToDesktopNumber(1)
+,#+2::moveToDesktopNumber(2)
+,#+3::moveToDesktopNumber(3)
+,#+4::moveToDesktopNumber(4)
+,#+5::moveToDesktopNumber(5)
+,#+6::moveToDesktopNumber(6)
+,#+7::moveToDesktopNumber(7)
+,#+8::moveToDesktopNumber(8)
+,#+9::moveToDesktopNumber(9)
+
+^2::moveToDesktopNumber(2)
+
+^!c::createVirtualDesktop()
+^!d::deleteVirtualDesktop()
+#+END_SRC
