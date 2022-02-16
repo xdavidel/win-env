@@ -716,7 +716,8 @@ Autohotkey use the following symbols to bind action keys:
       ; else start requested program
       Run cmd /c "start ^"^" ^"%program%^"",, Hide ;use cmd in hidden mode to launch requested program
       WinWait, %window%,,5		; wait up to 5 seconds for window to exist
-      IfWinNotActive, %window%, , WinActivate, %window% {
+      IfWinNotActive, %window%, , WinActivate, %window%
+      {
         WinActivate  ; Uses the last found window.
       }
     }
