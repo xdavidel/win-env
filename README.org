@@ -105,6 +105,12 @@ REM link vscodium
 if not exist %APPDATA%\VSCodium\ (
 mklink /J %APPDATA%\VSCodium %USERPROFILE%\dotfiles\.config\VSCodium
 )
+
+REM link wezterm
+if not exist %USERPROFILE%\.config\wezterm\ (
+echo linking wezterm
+mklink /J %USERPROFILE%\.config\wezterm %USERPROFILE%\dotfiles\.config\wezterm
+)
 #+end_src
 
 * Edit with Emacs
