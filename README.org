@@ -16,6 +16,7 @@
   - [[#use-neovim-alias-if-it-is-installed][Use neovim alias if it is installed]]
   - [[#setup-a-better-prompt-for-powershell][Setup a better prompt for powershell]]
   - [[#exit-on-q][Exit on ~q~]]
+  - [[#encrypt-all-pdfs-in-a-directory][Encrypt all pdfs in a directory]]
 - [[#command-prompt][Command Prompt]]
   - [[#ls-equivalents][~ls~ Equivalents]]
   - [[#exit-shell][Exit shell]]
@@ -314,6 +315,22 @@ function q {
 }
 #+END_SRC
 
+** Encrypt all pdfs in a directory
+
+#+BEGIN_SRC powershell :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/encrypt_pdfs.ps1")
+$pass = Read-Host -Prompt "Enter password"
+
+$enc_dir = New-Item -ItemType "directory" -Path $args -Name "enc" -Force
+
+get-childitem $args -recurse | where {$_.extension -eq ".pdf"} | % {
+     Write-Host Encrypting $_.FullName
+
+     $output_name = $enc_dir.FullName + "/" + $_.Name
+
+
+     pdftk $_.FullName output $output_name user_pw $pass
+}
+#+END_SRC
 * Command Prompt
 
 We can use scripts to create simple and relativly fast apps, aliases and functions
