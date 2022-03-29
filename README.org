@@ -82,13 +82,11 @@ git clone --depth 1 "https://gitlab.com/xdavidel/dotfiles.git" %USERPROFILE%\dot
 
 REM create config dir if needed
 if not exist %USERPROFILE%\.config\ (
-echo Creating config directory
 mkdir %USERPROFILE%\.config
 )
 
 REM link mpv
 if not exist %USERPROFILE%\.config\mpv\ (
-echo linking mpv
 mklink /J %USERPROFILE%\.config\mpv %USERPROFILE%\dotfiles\.config\mpv
 )
 
@@ -109,8 +107,12 @@ mklink /J %APPDATA%\VSCodium %USERPROFILE%\dotfiles\.config\VSCodium
 
 REM link wezterm
 if not exist %USERPROFILE%\.config\wezterm\ (
-echo linking wezterm
 mklink /J %USERPROFILE%\.config\wezterm %USERPROFILE%\dotfiles\.config\wezterm
+)
+
+REM link nushell
+if not exist %APPDATA%\nushell\ (
+mklink /J %APPDATA%\nushell %USERPROFILE%\dotfiles\.config\nushell
 )
 #+end_src
 
