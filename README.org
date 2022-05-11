@@ -22,6 +22,7 @@
   - [[#exit-shell][Exit shell]]
   - [[#clear-the-screen][Clear the screen]]
   - [[#neovim-alias][Neovim alias]]
+  - [[#get-wi-fi-passwords][Get Wi-Fi passwords]]
   - [[#choose-a-vm][Choose a VM]]
   - [[#control-media][Control media]]
   - [[#string-unix-written-in-python][String unix written in python]]
@@ -386,6 +387,12 @@ nvim %*
 #+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/vi.bat")
 @echo off
 nvim %*
+#+end_src
+
+** Get Wi-Fi passwords
+
+#+BEGIN_SRC bat :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/wifipass.bat")
+for /f "tokens=2 delims=:" %%i in ('netsh wlan show profile ^| findstr "All" ^| fzf') do netsh wlan show profile %%i key=clear
 #+end_src
 
 ** Choose a VM
