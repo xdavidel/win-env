@@ -10,7 +10,7 @@
 - [[#edit-with-emacs][Edit with Emacs]]
 - [[#windows-photo-viewer][Windows Photo Viewer]]
 - [[#caps-to-ctrl][CAPS to CTRL]]
-- [[#runner-script][Runner script]]
+- [[#runner-scripts][Runner scripts]]
 - [[#powershell][Powershell]]
   - [[#go-one-directory-up-using-only-][Go one directory up using only `..`]]
   - [[#use-neovim-alias-if-it-is-installed][Use neovim alias if it is installed]]
@@ -279,7 +279,7 @@ Windows Registry Editor Version 5.00
 "Scancode Map"=hex:00,00,00,00,00,00,00,00,02,00,00,00,1d,00,3a,00,00,00,00,00
 #+end_src
 
-* Runner script
+* Runner scripts
 
 One annoying thing in windows is it habit of opening a terminal
 for running shell scripts. Running them via this vbs script
@@ -295,6 +295,29 @@ else
     Set oShell = CreateObject ("Wscript.Shell")
     oShell.Run args.Item(0), 0, false
 end if
+#+end_src
+
+Another issue is that sometimes windows app will write to
+stdout and stderr while GUI apps don't have them point out anywhere.
+We can catch all outputs using a simple script:
+
+#+begin_src python :mkdirp yes :tangle (concat (getenv "USERPROFILE") "/bin/process_runner.py")
+from subprocess import Popen
+import sys
+
+def usage(argv):
+    print("Usage: %s <process>" % (argv[0]), file=sys.stderr)
+    exit(1)
+
+def main():
+    if len(sys.argv) <= 1:
+        usage(sys.argv)
+
+    p = Popen(sys.argv[1:], stdout=sys.stdout, stderr=sys.stderr, bufsize=1)
+    p.wait()
+
+if __name__ == "__main__":
+    main()
 #+end_src
 
 * Powershell
